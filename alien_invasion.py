@@ -2,10 +2,12 @@ import sys
 from time import sleep
 
 import pygame
+import json
 
 from settings import Settings
 from game_stats import GameStats
 from scoreboard import Scoreboard
+#from leaderboard import Leaderboard
 from button import Button
 from ship import Ship
 from bullet import Bullet
@@ -28,6 +30,7 @@ class AlienInvasion:
         #And create a scoreboard
         self.stats = GameStats(self)
         self.sb = Scoreboard(self)
+        #self.lb = Leaderboard(self)
 
         #Set background color
         self.bg_color = (230, 230, 230)
@@ -41,7 +44,9 @@ class AlienInvasion:
         #Make the play button,  resume button, and quit button
         self.play_button = Button(self, "Play")
         self.resume_button = Button(self, "Resume", self.play_button.rect.x, 240)
-        self.quit_button = Button(self, "Quit", self.play_button.rect.x, 300)
+        self.quit_button = Button(self, "Quit", self.play_button.rect.x, 360)
+        self.replay_button = Button(self, "Replay", self.play_button.rect.x, 240)
+        self.leaderboard_button = Button(self, "Leaderboard", self.play_button.rect.x, 300)
 
     def run_game(self):
         #Start the main loop for the game
@@ -60,7 +65,7 @@ class AlienInvasion:
         #Respond to keypresses and mouse events
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
-                    self._alltime_high_score()
+                    self._leaderboard_update()
                     sys.exit()
                 elif event.type == pygame.KEYDOWN:
                     self._check_keydown_events(event)
@@ -68,18 +73,24 @@ class AlienInvasion:
                     self._check_keyup_events(event)
                 elif event.type == pygame.MOUSEBUTTONDOWN:
                     mouse_pos = pygame.mouse.get_pos()
-                    self._check_play_button(mouse_pos)
+                    self._check_play_replay_button(mouse_pos)
                     self._check_resume_button(mouse_pos)
                     self._check_quit_button(mouse_pos)
 
-    def _check_play_button(self, mouse_pos):
+    def _check_play_replay_button(self, mouse_pos):
         #Start a new game when the player clicks play
-        button_clicked = self.play_button.rect.collidepoint(mouse_pos)
+        if self.stats.game_over:
+            button_clicked = self.replay_button.rect.collidepoint(mouse_pos)
+            self._leaderboard_update()
+        else:
+            button_clicked = self.play_button.rect.collidepoint(mouse_pos)
+
         if button_clicked and not self.stats.game_active:
             #Reset game stats
             self.settings.initialize_dynamic_settings()
             self.stats.reset_stats()
             self.stats.game_active = True
+            self.stats.game_over = False
             self.sb.prep_images()
 
             #Get rid of any remaining aliens and bullets
@@ -93,6 +104,8 @@ class AlienInvasion:
             #Hide mouse cursor
             pygame.mouse.set_visible(False)
 
+    #def _check_leaderboard_button(self, mouse_pos):
+
     def _check_resume_button(self, mouse_pos):
         #Resume game from pause menu
         button_clicked = self.resume_button.rect.collidepoint(mouse_pos)
@@ -104,23 +117,22 @@ class AlienInvasion:
     def _check_quit_button(self, mouse_pos):
         button_clicked = self.quit_button.rect.collidepoint(mouse_pos)
         if button_clicked and self.stats.pause_active:
-            self._alltime_high_score()
+            self._leaderboard_update()
+            sys.exit()
+        if button_clicked and not self.stats.game_active and self.stats.game_over:
             sys.exit()
  
     def _check_keydown_events(self, event):
-        if not self.stats.pause_active:
+        if not self.stats.pause_active and self.stats.game_active:
             if event.key == pygame.K_RIGHT:
                 self.ship.moving_right = True
             elif event.key == pygame.K_LEFT:
                 self.ship.moving_left = True
-            # elif event.key == pygame.K_q:
-            #     self._alltime_high_score()
-            #     sys.exit()
             elif event.key == pygame.K_SPACE:
                 self._fire_bullet()
             elif event.key == pygame.K_ESCAPE:
                 self._open_pause_menu()
-        else:
+        elif self.stats.pause_active and self.stats.game_active:
             if event.key == pygame.K_ESCAPE:
                 self._close_pause_menu()
         
@@ -140,15 +152,38 @@ class AlienInvasion:
         #Hide mouse cursor
         pygame.mouse.set_visible(False)
 
-    def _alltime_high_score(self):
-        #Compare current score with all time highscore. If its higher, replace all time with current
-        #High score is saved in a txt file and updated.
-        self.stats.high_score
-        with open(self.stats.alltime_high_score) as highscore:
-            current_alltime = int(highscore.read())
-            if self.stats.high_score > current_alltime:
-                with open(self.stats.alltime_high_score, 'w') as highscore:
-                    highscore.write(str(self.stats.high_score))
+    def _write_high_score(self, data):
+        with open(self.stats.leaderboard, 'w') as leaderboard_file_w:
+            json.dump(data, leaderboard_file_w, indent=4)
+
+    def _store_score(self):
+        #stores current score as a data
+        high_score = {}
+        high_score['name'] = "AAA"
+        high_score['score'] = self.stats.score
+        return high_score
+
+    def _leaderboard_update(self):
+        #Updates leaderboard with high scores in a json file
+        with open(self.stats.leaderboard, 'r') as leaderboard_file:
+            leaderboard_data = json.load(leaderboard_file)
+            high_scores = leaderboard_data['high scores']
+            if len(high_scores) == 0:
+                #Object to be appended is dictionary high_score with key value pair or name and score
+                high_scores.append(self._store_score()) 
+                self._write_high_score(leaderboard_data)
+            else:
+                hs_stored = False
+                for i, rank in enumerate(high_scores):
+                    if self.stats.score >= rank['score']:
+                        high_scores.insert(i, self._store_score())
+                        hs_stored = True
+                        break
+                if len(high_scores) < 5 and not hs_stored:
+                    high_scores.append(self._store_score()) 
+                if len(high_scores) > 5:
+                    high_scores.pop()
+                self._write_high_score(leaderboard_data)      
 
     def _fire_bullet(self):
         #Create a new bullet and add it to the bullets group
@@ -255,6 +290,7 @@ class AlienInvasion:
         
         else:
             self.stats.game_active = False
+            self.stats.game_over = True
             pygame.mouse.set_visible(True)
 
     def _check_fleet_edges(self):
@@ -291,13 +327,20 @@ class AlienInvasion:
             self.sb.show_score()
 
             #Draw the play button if the game is inactive
-            if not self.stats.game_active:
+            if not self.stats.game_active and not self.stats.game_over:
                 self.play_button.draw_button()
 
-            #Draw the resume and quit button when the game is paused
+            #Draw the pause menu when the game is paused
             if self.stats.pause_active:
                 self.resume_button.draw_button()
                 self.quit_button.draw_button()
+                self.leaderboard_button.draw_button()
+
+            #Draw the replay menu if the game is over
+            if not self.stats.game_active and self.stats.game_over:
+                self.replay_button.draw_button()
+                self.quit_button.draw_button()
+                self.leaderboard_button.draw_button()
 
             #Make the most recently drawn screen visible
             pygame.display.flip()

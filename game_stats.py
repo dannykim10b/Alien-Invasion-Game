@@ -1,3 +1,5 @@
+import json
+
 class GameStats:
     #Track statistics for Alien Invasion
 
@@ -12,10 +14,17 @@ class GameStats:
         #Pause should not be active
         self.pause_active = False
 
+        #Check if game is over
+        self.game_over = False
+
         #High score should never be reset
-        self.alltime_high_score = 'highscore.txt'
-        with open(self.alltime_high_score) as highscore:
-            self.high_score = int(highscore.read())
+        self.leaderboard = 'leaderboard.json'
+        with open(self.leaderboard) as leaderboard_file:
+            leaderboard_data = json.load(leaderboard_file)
+            if len(leaderboard_data['high scores']) == 0:
+                self.high_score = 0
+            else:
+                self.high_score = leaderboard_data['high scores'][0]['score']
 
     def reset_stats(self):
         #Initialize statistics that can change during the game

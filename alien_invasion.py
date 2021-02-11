@@ -7,7 +7,7 @@ import json
 from settings import Settings
 from game_stats import GameStats
 from scoreboard import Scoreboard
-#from leaderboard import Leaderboard
+from leaderboard import Leaderboard
 from button import Button
 from ship import Ship
 from bullet import Bullet
@@ -30,7 +30,7 @@ class AlienInvasion:
         #And create a scoreboard
         self.stats = GameStats(self)
         self.sb = Scoreboard(self)
-        #self.lb = Leaderboard(self)
+        self.lb = Leaderboard(self)
 
         #Set background color
         self.bg_color = (230, 230, 230)
@@ -47,6 +47,7 @@ class AlienInvasion:
         self.quit_button = Button(self, "Quit", self.play_button.rect.x, 360)
         self.replay_button = Button(self, "Replay", self.play_button.rect.x, 240)
         self.leaderboard_button = Button(self, "Leaderboard", self.play_button.rect.x, 300)
+        self.back_button = Button(self, "Back", self.play_button.rect.x, 450)
 
     def run_game(self):
         #Start the main loop for the game
@@ -76,6 +77,8 @@ class AlienInvasion:
                     self._check_play_replay_button(mouse_pos)
                     self._check_resume_button(mouse_pos)
                     self._check_quit_button(mouse_pos)
+                    self._check_leaderboard_button(mouse_pos)
+                    self._check_back_button(mouse_pos)
 
     def _check_play_replay_button(self, mouse_pos):
         #Start a new game when the player clicks play
@@ -104,22 +107,32 @@ class AlienInvasion:
             #Hide mouse cursor
             pygame.mouse.set_visible(False)
 
-    #def _check_leaderboard_button(self, mouse_pos):
+    def _check_leaderboard_button(self, mouse_pos):
+        button_clicked = self.leaderboard_button.rect.collidepoint(mouse_pos)
+        if button_clicked and self.stats.pause_active or button_clicked and not self.stats.game_active and self.stats.game_over:
+            self.stats.leaderboard_active = True
+        pygame.mouse.set_visible(True)
+
+    def _check_back_button(self, mouse_pos):
+        button_clicked = self.back_button.rect.collidepoint(mouse_pos)
+        if button_clicked and self.stats.leaderboard_active:
+            self.stats.leaderboard_active = False
+        # pygame.mouse.set_visible(True)
 
     def _check_resume_button(self, mouse_pos):
         #Resume game from pause menu
         button_clicked = self.resume_button.rect.collidepoint(mouse_pos)
-        if button_clicked and self.stats.pause_active:
+        if button_clicked and self.stats.pause_active and not self.stats.leaderboard_active:
             self.stats.pause_active = False
         #Hide mouse cursor
         pygame.mouse.set_visible(False)
 
     def _check_quit_button(self, mouse_pos):
         button_clicked = self.quit_button.rect.collidepoint(mouse_pos)
-        if button_clicked and self.stats.pause_active:
+        if button_clicked and self.stats.pause_active and not self.stats.leaderboard_active:
             self._leaderboard_update()
             sys.exit()
-        if button_clicked and not self.stats.game_active and self.stats.game_over:
+        if button_clicked and not self.stats.game_active and self.stats.game_over and not self.stats.leaderboard_active:
             sys.exit()
  
     def _check_keydown_events(self, event):
@@ -134,13 +147,21 @@ class AlienInvasion:
                 self._open_pause_menu()
         elif self.stats.pause_active and self.stats.game_active:
             if event.key == pygame.K_ESCAPE:
-                self._close_pause_menu()
+                if self.stats.leaderboard_active:
+                    self._esc_to_go_back()
+                else:
+                    self._close_pause_menu()
         
     def _check_keyup_events(self, event):
         if event.key == pygame.K_RIGHT:
             self.ship.moving_right = False
         if event.key == pygame.K_LEFT:
             self.ship.moving_left = False
+
+    def _esc_to_go_back(self):
+        if self.stats.leaderboard_active:
+            self.stats.leaderboard_active = False
+        pygame.mouse.set_visible(True)
 
     def _open_pause_menu(self):
         self.stats.pause_active = True
@@ -160,7 +181,7 @@ class AlienInvasion:
         #stores current score as a data
         high_score = {}
         high_score['name'] = "AAA"
-        high_score['score'] = self.stats.score
+        high_score['score'] = round(self.stats.score, -1)
         return high_score
 
     def _leaderboard_update(self):
@@ -331,13 +352,17 @@ class AlienInvasion:
                 self.play_button.draw_button()
 
             #Draw the pause menu when the game is paused
-            if self.stats.pause_active:
+            if self.stats.pause_active and not self.stats.leaderboard_active:
                 self.resume_button.draw_button()
                 self.quit_button.draw_button()
                 self.leaderboard_button.draw_button()
 
+            if self.stats.leaderboard_active:
+                self.lb.show_leaderboard()
+                self.back_button.draw_button()
+
             #Draw the replay menu if the game is over
-            if not self.stats.game_active and self.stats.game_over:
+            if not self.stats.game_active and self.stats.game_over and not self.stats.leaderboard_active:
                 self.replay_button.draw_button()
                 self.quit_button.draw_button()
                 self.leaderboard_button.draw_button()

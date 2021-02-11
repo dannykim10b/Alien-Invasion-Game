@@ -17,6 +17,9 @@ class GameStats:
         #Check if game is over
         self.game_over = False
 
+        #Check if leaderboard should be shown
+        self.leaderboard_active = False
+
         #High score should never be reset
         self.leaderboard = 'leaderboard.json'
         with open(self.leaderboard) as leaderboard_file:
